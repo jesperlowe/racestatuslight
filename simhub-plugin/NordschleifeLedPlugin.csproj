@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>User.NordschleifeLedPlugin</RootNamespace>
+    <AssemblyName>User.NordschleifeLedPlugin</AssemblyName>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <!--
+    Official SimHub SDK examples are installed with SimHub under:
+    C:\Program Files (x86)\SimHub\PluginSdk
+
+    Adjust SimHubInstallPath if your SimHub folder is different. The plugin deliberately references
+    only the core SDK assemblies needed by IPlugin/IDataPlugin/GameData to reduce update fragility.
+  -->
+  <PropertyGroup>
+    <SimHubInstallPath Condition="'$(SimHubInstallPath)' == ''">C:\Program Files (x86)\SimHub</SimHubInstallPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="SimHub.Plugins">
+      <HintPath>$(SimHubInstallPath)\SimHub.Plugins.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="GameReaderCommon">
+      <HintPath>$(SimHubInstallPath)\GameReaderCommon.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="System.IO.Ports" />
+  </ItemGroup>
+</Project>
