@@ -1,61 +1,51 @@
-# SimHub Setup
+# SimHub Setup Without a Custom Plugin
 
-## Reference notes
+This project no longer uses a SimHub SDK plugin. SimHub should send race state to Home Assistant, and Home Assistant forwards that state to the ESPHome lamp.
 
-The plugin follows SimHub's official SDK guidance by using the core plugin lifecycle only. SimHub's official wiki says SDK demo projects are installed under `C:\Program Files (x86)\SimHub\PluginSdk`, including `User.PluginSdkDemo`, and warns that undocumented components can break with SimHub updates.
+## Target endpoint
 
-SimHub's Custom Serial Devices page is useful as a fallback/no-code approach: it documents ASCII messages, selectable update frequency, changes-only updates, automatic reconnect, and the free-version 10 Hz limit. This project uses the same robust idea but keeps the calculation in a tiny plugin and LED control on Arduino.
-
-## Install the plugin
-
-1. Install SimHub.
-2. Install Visual Studio 2022 or later with .NET Framework 4.8 targeting pack.
-3. Open `simhub-plugin/NordschleifeLedPlugin.csproj`.
-4. Build in Release mode.
-5. Copy `User.NordschleifeLedPlugin.dll` from the build output to the plugin location used by your SimHub SDK workflow.
-6. Restart SimHub.
-7. If SimHub asks to activate the plugin, accept/enable it.
-
-## Select COM port
-
-1. Connect the Arduino by USB.
-2. In Windows Device Manager or Arduino IDE, note the COM port, for example `COM5`.
-3. Start SimHub once so the settings file is created:
+Configure SimHub, a SimHub no-code output, or a local helper to POST JSON to your Home Assistant webhook:
 
 ```text
-%APPDATA%\SimHub\NordschleifeLedPlugin\settings.json
+http://homeassistant.local:8123/api/webhook/YOUR_WEBHOOK_ID
 ```
 
-4. Edit the settings file:
+Use the webhook ID from Home Assistant `secrets.yaml`:
+
+```yaml
+nordschleife_simhub_webhook_id: "replace-with-a-long-random-string"
+```
+
+## Payload
 
 ```json
 {
-  "ComPort": "COM5",
-  "BaudRate": 115200,
-  "LedSections": 12,
-  "UpdateIntervalMs": 100,
-  "ForceUpdate": false
+  "mode": "R",
+  "section": 7
 }
 ```
 
-5. Restart SimHub or reload the plugin.
+- `mode`: `R` for race, `Q` for qualify, `P` for practice/fallback, or `O` for offline.
+- `section`: active Nordschleife section from `0` to `11`.
 
-## Expected behavior
+## Section calculation
 
-- Race session: command starts with `R`, base color red.
-- Qualify session: command starts with `Q`, base color yellow.
-- Practice/test/hotlap/unknown: command starts with `P`, base color green.
-- Active Nordschleife section is blue.
-- If mode and section do not change, the plugin does not repeat the same command unless `ForceUpdate` is `true`.
-
-## Manual serial test before SimHub
-
-Use Arduino IDE Serial Monitor at `115200` baud with newline enabled:
+If your SimHub profile exposes normalized lap progress as `0.0..1.0`, calculate:
 
 ```text
-R,0
-Q,5
-P,11
+section = floor(trackProgress * 12)
 ```
 
-If these work, the Arduino and LED wiring are correct and remaining issues are usually COM-port selection or SimHub plugin installation.
+Clamp the result to `0..11`. If lap progress is unavailable, use an available sector value as an approximate fallback or send `0`.
+
+## Manual verification
+
+Before configuring SimHub, verify Home Assistant and the lamp with curl:
+
+```bash
+curl -X POST "http://homeassistant.local:8123/api/webhook/YOUR_WEBHOOK_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"R","section":0}'
+```
+
+If the curl test works, any remaining work is only mapping SimHub session/progress values into the same JSON payload.
