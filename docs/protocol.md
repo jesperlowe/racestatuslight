@@ -1,18 +1,22 @@
-# Serial Protocol
+# Home Assistant Protocol
 
-The SimHub plugin sends one ASCII line per update:
+SimHub no longer talks directly to the lamp. SimHub sends a small JSON payload to Home Assistant, then Home Assistant calls the ESPHome service exposed by the lamp.
 
-```text
-<MODE>,<SECTION>\n
+## HTTP webhook request
+
+```http
+POST /api/webhook/<nordschleife_simhub_webhook_id>
+Content-Type: application/json
 ```
 
-Examples:
-
-```text
-R,7
-Q,3
-P,10
+```json
+{
+  "mode": "R",
+  "section": 7
+}
 ```
+
+The webhook ID is stored in Home Assistant `secrets.yaml` as `nordschleife_simhub_webhook_id`.
 
 ## Mode
 
@@ -21,8 +25,9 @@ P,10
 | `R` | Race | Red |
 | `Q` | Qualify / Qualification | Yellow |
 | `P` | Practice / test / hotlap / fallback | Green |
+| `O` | Offline / idle | Dim white |
 
-Unknown/offline state is shown by the Arduino as dim white after startup until a valid command is received.
+Unknown values are normalized to `P` by the Home Assistant script. The ESPHome lamp also falls back to dim white for non-race values it does not recognize.
 
 ## Section
 
@@ -45,13 +50,40 @@ Unknown/offline state is shown by the Arduino as dim white after startup until a
 
 ## Mapping logic
 
-First version uses linear lap progress:
+Use linear lap progress if SimHub exposes normalized lap progress:
 
 ```text
 section = floor(trackProgress * 12)
 ```
 
-The plugin clamps the result to `0..11`. If lap progress is unavailable, it falls back to sector index. If sector is also unavailable, it sends section `0`.
+Clamp the result to `0..11`. If lap progress is unavailable, use a sector fallback or send section `0`.
+
+## ESPHome service
+
+Home Assistant forwards normalized values to the ESPHome native API service created by the lamp firmware:
+
+```yaml
+service: esphome.nordschleife_led_lamp_set_race_status
+data:
+  mode: R
+  section: 7
+```
+
+## Curl examples
+
+```bash
+curl -X POST "http://homeassistant.local:8123/api/webhook/YOUR_WEBHOOK_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"R","section":0}'
+
+curl -X POST "http://homeassistant.local:8123/api/webhook/YOUR_WEBHOOK_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"Q","section":5}'
+
+curl -X POST "http://homeassistant.local:8123/api/webhook/YOUR_WEBHOOK_ID" \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"P","section":11}'
+```
 
 ## 60 LED default table
 

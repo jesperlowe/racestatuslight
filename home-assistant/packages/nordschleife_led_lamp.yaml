@@ -1,0 +1,66 @@
+input_select:
+  nordschleife_session_mode:
+    name: Nordschleife Session Mode
+    options:
+      - Race
+      - Qualify
+      - Practice
+      - Offline
+    initial: Offline
+
+input_number:
+  nordschleife_active_section:
+    name: Nordschleife Active Section
+    min: 0
+    max: 11
+    step: 1
+    mode: slider
+
+script:
+  nordschleife_set_lamp:
+    alias: Nordschleife - set lamp state
+    mode: restart
+    fields:
+      mode:
+        description: R for race, Q for qualify, P for practice/fallback, or O for offline.
+        example: R
+      section:
+        description: Active Nordschleife section from 0 to 11.
+        example: 7
+    sequence:
+      - variables:
+          normalized_mode: >-
+            {%- set raw = (mode | default('P') | string | upper | trim) -%}
+            {{ raw[0] if raw|length > 0 and raw[0] in ['R', 'Q', 'P', 'O'] else 'P' }}
+          normalized_section: "{{ [0, [section | default(0) | int(0), 11] | min] | max }}"
+          mode_name: "{{ {'R': 'Race', 'Q': 'Qualify', 'P': 'Practice', 'O': 'Offline'}.get(normalized_mode, 'Practice') }}"
+      - service: input_select.select_option
+        target:
+          entity_id: input_select.nordschleife_session_mode
+        data:
+          option: "{{ mode_name }}"
+      - service: input_number.set_value
+        target:
+          entity_id: input_number.nordschleife_active_section
+        data:
+          value: "{{ normalized_section }}"
+      - service: esphome.nordschleife_led_lamp_set_race_status
+        data:
+          mode: "{{ normalized_mode }}"
+          section: "{{ normalized_section }}"
+
+automation:
+  - id: nordschleife_simhub_webhook_to_lamp
+    alias: Nordschleife - SimHub webhook to lamp
+    mode: restart
+    trigger:
+      - platform: webhook
+        webhook_id: !secret nordschleife_simhub_webhook_id
+        allowed_methods:
+          - POST
+        local_only: true
+    action:
+      - service: script.nordschleife_set_lamp
+        data:
+          mode: "{{ trigger.json.mode | default('P') }}"
+          section: "{{ trigger.json.section | default(0) }}"
